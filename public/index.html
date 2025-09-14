@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<meta http-equiv="X-UA-Compatible" content="ie=edge" />
+	<title>MEMORY GAME</title>
+	<link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+	<link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="./Game_style.css">
+	<style>
+		/* Additional quick styles */
+		.hidden {
+			display: none;
+		}
+
+		.game-container {
+			width: 100%;
+			height: 100vh;
+		}
+
+		.score {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			color: wheat;
+			padding-top: 10px;
+			font-weight: 900;
+		}
+
+		.turn {
+			color: red !important;
+		}
+	</style>
+</head>
+
+<body onclick="Sound()">
+	<!-- ===================== HOME SCREEN ===================== -->
+	<div id="homeScreen">
+		<form>
+			<div class="head">
+				<div>
+					<i class='bx bx-menu-alt-left' id="menuToggle"></i>
+					<h3 id="playername">Player Name</h3>
+				</div>
+				<div class="ShowHideOP">
+					<div>
+						<input type="radio" id="show" name="showhide" value="0" checked>
+						<label for="show">😈</label>
+						<input type="radio" id="hide" name="showhide" value="1">
+						<label for="hide" class="hide">?</label>
+					</div>
+				</div>
+				<div class="valueCntrl">
+					<label for="vlm" class="volumeBtn"><i class='bx bxs-volume-full'></i></label>
+					<input type="radio" name="vlm" id="vlm" value="0" checked />
+					<input type="radio" name="vlm" value="1" />
+				</div>
+			</div>
+
+			<div class="catagory">
+				<div class="CardSelect"></div>
+				<div class="SizeOfCardSelect"></div>
+				<button type="button" class="btn" onclick="startGame(event)">START
+				</button>
+			</div>
+		</form>
+	</div>
+
+	<!-- ===================== GAME SCREEN ===================== -->
+	<div id="gameScreen" class="hidden">
+		<div class="GameScore">
+			<i class='bx bx-arrow-back' onclick="GotoHome()"></i>
+			<div class="score player1">
+				<span class="playerName">Player 1</span>
+				<h1 class="value">0</h1>
+			</div>
+			<div class="score player2">
+				<span class="playerName">Player 2</span>
+				<h1 class="value">0</h1>
+			</div>
+			<i class='bx bx-reset' onclick="Reset()"></i>
+		</div>
+		<section>
+			<main class="Game_Box"></main>
+		</section>
+	</div>
+
+	<!-- ===================== SIDEBAR MENU ===================== -->
+	<div class="menu-bar" id="menuBar">
+		<button class="close-menu" id="closeMenu"><i class='bx bx-x'></i></button>
+		<div class="menu-header">Online Players</div>
+		<div class="online-users" id="onlineUsers"></div>
+		<div class="online-user player">
+			<i class='bx bxs-circle'></i>
+			<span id="currentPlayerName">Name</span>
+			<button class='remove-player' onclick="removePlayer(event)">
+				<i class='bx bx-exit'></i>
+			</button>
+		</div>
+	</div>
+
+	<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+	<script>
+		/* ===================== GLOBAL VARIABLES ===================== */
+
+
+
+		const socket = io();
+		let player = '';
+		let gameId = '';
+		let gameState = null;
+		let playerId = '';
+		const gameBox = document.querySelector(".Game_Box");
+
+		const homeScreen = document.getElementById("homeScreen");
+		const gameScreen = document.getElementById("gameScreen");
+		const menuBar = document.getElementById('menuBar');
+		const menuToggle = document.getElementById('menuToggle');
+		const closeMenu = document.getElementById('closeMenu');
+		const onlineUsersEl = document.getElementById('onlineUsers');
+		const showPlayerName = document.getElementById('currentPlayerName');
+		const root = document.querySelector(':root');
+		const player1Score = document.querySelector(".player1 .value");
+		const player2Score = document.querySelector(".player2 .value");
+		const player1Name = document.querySelector(".player1 .playerName");
+		const player2Name = document.querySelector(".player2 .playerName");
+		/* ===================== MENU & PLAYER ===================== */
+		menuToggle.addEventListener('click', () => menuBar.classList.add('active'));
+		closeMenu.addEventListener('click', () => menuBar.classList.remove('active'));
+
+		function getPlayerName() {
+			let saved = localStorage.getItem('playername');
+			if (saved && saved.trim()) return saved;
+			let name = '';
+			do {
+				name = prompt("Enter your name:")?.trim();
+			} while (!name);
+			localStorage.setItem('playername', name);
+			return name;
+		}
+
+		socket.on('connect', () => {
+			player = getPlayerName();
+			socket.emit('player:joined', player);
+			document.getElementById('playername').textContent = player;
+			showPlayerName.textContent = player;
+		});
+
+		socket.on('users:update', users => {
+			onlineUsersEl.innerHTML = users.filter(u => u !== player)
+				.map(u => `<div class="online-user"><i class='bx bxs-circle'></i>${u}</div>`)
+				.join('') || '<p>No players online.</p>';
+		});
+
+		socket.on("get:player", id => {
+			playerId = id;
+		});
+
+		function removePlayer(e) {
+			e.preventDefault();
+			localStorage.removeItem('playername');
+			location.reload();
+		}
+		const params = new URLSearchParams(window.location.search);
+		const urlGameId = params.get("id");
+		if (urlGameId) {
+			gameId = urlGameId;
+			socket.emit("get:gameState", gameId); // Ask server for the current state
+			homeScreen.classList.add('hidden');
+			gameScreen.classList.remove('hidden');
+
+		}
+		/* ===================== START GAME ===================== */
+		function startGame(e) {
+			e.preventDefault();
+			e.target.innerHTML = "WAIT <i class='bx bx-loader bx-spin'></i>";
+			const show = Boolean(document.querySelector('input[name="showhide"]:checked').value);
+			const size = Number(document.querySelector('input[name="size_name"]:checked').value);
+			const card = Number(document.querySelector('input[name="card"]:checked').value);
+			socket.emit('matchmaking:request', { name: player, show, size, card });
+			document.querySelector('.catagory').classList.add('startingMatch');
+			socket.once('matchmaking:response', data => {
+				gameId = data.gameId;
+				const newUrl = `${window.location.pathname}?id=${gameId}`;
+				window.history.pushState({ gameId }, "", newUrl);
+				homeScreen.classList.add('hidden');
+				gameScreen.classList.remove('hidden');
+				socket.emit("get:gameState", gameId);
+			});
+		}
+		/* ===================== GAME LOGIC ===================== */
+		socket.on("update:gameState", state => {
+			gameState = state.gameState;
+			console.log(gameState);
+			Object.keys(gameState.scores).forEach(p => {
+				if (p === player) {
+					player1Score.textContent = gameState.scores[p];
+					player1Name.textContent = player;
+				} else {
+					player2Score.textContent = gameState.scores[p];
+					player2Name.textContent = p;
+				}
+				if (gameState.currentTurn === player) {
+					player1Score.classList.add('turn');
+					player2Score.classList.remove('turn');
+				} else {
+					player1Score.classList.remove('turn');
+					player2Score.classList.add('turn');
+				}
+			});
+
+			render();
+		});
+
+		function render() {
+			gameBox.innerHTML = '';
+			switch (gameState.boardSize) {
+				case 0:
+					root.style.setProperty('--no', '3'); break;
+				case 1:
+					root.style.setProperty('--no', '4');
+					root.style.setProperty('--row', '8rem'); break;
+				case 2:
+					root.style.setProperty('--no', '5');
+					root.style.setProperty('--row', '7rem'); break;
+			}
+			gameState.board.forEach(c => {
+				const el = document.createElement("div");
+				el.classList.add("card");
+				if (c.revealed || c.matched) {
+					el.classList.add(c.matched ? "MatchBox" : "boxOpen");
+					el.innerHTML = c.value;
+				}
+				el.onclick = () => { if (!c.revealed && !c.matched) flipCard(c.id); };
+				gameBox.append(el);
+			});
+		}
+		function flipCard(cardId) {
+				socket.emit("card:flip", { gameId, cardId, player: playerId });
+		}
+		function Reset() { socket.emit("get:gameState", gameId); }
+		function GotoHome() {
+			homeScreen.classList.remove('hidden');
+			gameScreen.classList.add('hidden');
+			const cleanUrl = window.location.pathname;
+			window.history.replaceState({}, "", cleanUrl);
+		}
+		/* ===================== SOUND & VOLUME ===================== */
+		const audio = new Audio('./click.mp3');
+		const audioClick = new Audio('./clickKey.mp3');
+		const audioWin = new Audio('./WinSound.mp3');
+		function Sound() { audio.play(); }
+		/* ===================== CARD & SIZE RENDER ===================== */
+		const CardSelect = document.querySelector(".CardSelect");
+		const SizeOfCardSelect = document.querySelector(".SizeOfCardSelect");
+		const emoji = ["😍", "💐", "🍎", "❤️", "🐱", "?"];
+		const size = ["2x3", "3x4", "4x5"];
+
+		for (let i = 0; i < 6; i++) {
+			let el = document.createElement("div");
+			el.classList.add("Card");
+			el.innerHTML = `<input type="radio" id="Card${i}" name="card" value="${i}">
+                    <label for="Card${i}" class="CardLable">${emoji[i]}</label>`;
+			CardSelect.append(el);
+		}
+		for (let i = 0; i < 3; i++) {
+			let el = document.createElement("div");
+			el.classList.add("SizeCard");
+			el.innerHTML = `<input type="radio" id="Size${i}" value="${i}" name="size_name">
+                      <label for="Size${i}">${size[i]}</label>`;
+			SizeOfCardSelect.append(el);
+		}
+		document.querySelector("#Card0").checked = true;
+		document.querySelector("#Size0").checked = true;
+	</script>
+</body>
+
+</html>

@@ -97,7 +97,7 @@ memory-game/
 
 | Home Screen                   | Game Board                    |
 | ----------------------------- | ----------------------------- |
-| ![Home](screenshots/home.png) | ![Game](screenshots/game.png) |
+| ![Home](screenshots/Home.png) | ![Game](screenshots/Game.png) |
 
 ---
 

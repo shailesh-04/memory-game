@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "nodenext",
+        "moduleResolution": "nodenext",
+        "target": "es2022",
+        "sourceMap": true,
+        "rootDir": "./src",
+        "outDir": "./dist",
+        "paths": {
+            "#/*": ["./src/*"],
+            "#config/*": ["./src/config/*"],
+            "#models/*": ["./src/models/*"],
+            "#routes/*": ["./src/routes/*"],
+            "#views/*": ["./src/views/*"]
+        }
+    },
+    "exclude": ["node_modules", "dist"],
+    "include": ["src", "src/**/*.ts"]
+}

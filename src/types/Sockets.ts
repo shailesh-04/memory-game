@@ -1,0 +1,1 @@
+export type CallBackT = () => void
